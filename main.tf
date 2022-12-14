@@ -18,8 +18,22 @@ locals {
   has_secrets = try(coalesce(var.atlantis_gitlab_user_token, var.atlantis_github_user_token, var.atlantis_github_app_key, var.atlantis_bitbucket_user_token) != "", false)
 
   # token/key
-  secret_name_key        = local.has_secrets ? var.atlantis_gitlab_user_token != "" ? "ATLANTIS_GITLAB_TOKEN" : var.atlantis_github_user_token != "" ? "ATLANTIS_GH_TOKEN" : var.atlantis_github_app_key != "" ? "ATLANTIS_GH_APP_KEY" : "ATLANTIS_BITBUCKET_TOKEN" : ""
-  secret_name_value_from = local.has_secrets ? var.atlantis_gitlab_user_token != "" ? var.atlantis_gitlab_user_token_ssm_parameter_name : var.atlantis_github_user_token != "" ? var.atlantis_github_user_token_ssm_parameter_name : var.atlantis_github_app_key != "" ? var.atlantis_github_app_key_ssm_parameter_name : var.atlantis_bitbucket_user_token_ssm_parameter_name : ""
+  secret_name_key = (
+    local.has_secrets ?
+      var.atlantis_gitlab_user_token != "" ? "ATLANTIS_GITLAB_TOKEN" : var.atlantis_github_user_token != "" ? "ATLANTIS_GH_TOKEN" : var.atlantis_github_app_key != "" ? "ATLANTIS_GH_APP_KEY" : "ATLANTIS_BITBUCKET_TOKEN" :
+      var.use_preset_ssm_parameters ?
+        var.atlantis_gitlab_user_token_ssm_parameter_name != "" ? "ATLANTIS_GITLAB_TOKEN" : var.atlantis_github_user_token_ssm_parameter_name != "" ? "ATLANTIS_GH_TOKEN" : atlantis_github_app_key_ssm_parameter_name != "" ? "ATLANTIS_GH_APP_KEY" : var.atlantis_bitbucket_user_token_ssm_parameter_name != "" ? "ATLANTIS_BITBUCKET_TOKEN" :
+        "" :
+      ""
+  )
+
+  secret_name_value_from = (
+    local.has_secrets ?
+      var.atlantis_gitlab_user_token != "" ? var.atlantis_gitlab_user_token_ssm_parameter_name : var.atlantis_github_user_token != "" ? var.atlantis_github_user_token_ssm_parameter_name : var.atlantis_github_app_key != "" ? var.atlantis_github_app_key_ssm_parameter_name : var.atlantis_bitbucket_user_token_ssm_parameter_name :
+      var.use_preset_ssm_parameters ?
+        try(coalesce(var.atlantis_gitlab_user_token_ssm_parameter_name, var.atlantis_github_user_token_ssm_parameter_name, atlantis_github_app_key_ssm_parameter_name, var.atlantis_bitbucket_user_token_ssm_parameter_name), "") :
+        ""
+  )
 
   # webhook
   secret_webhook_key = local.has_secrets || var.atlantis_github_webhook_secret != "" ? var.atlantis_gitlab_user_token != "" ? "ATLANTIS_GITLAB_WEBHOOK_SECRET" : var.atlantis_github_user_token != "" || var.atlantis_github_webhook_secret != "" ? "ATLANTIS_GH_WEBHOOK_SECRET" : var.atlantis_github_app_key != "" || var.atlantis_github_webhook_secret != "" ? "ATLANTIS_GH_WEBHOOK_SECRET" : "ATLANTIS_BITBUCKET_WEBHOOK_SECRET" : ""
@@ -149,13 +163,13 @@ data "aws_route53_zone" "this" {
 # Secret for webhook
 ################################################################################
 resource "random_id" "webhook" {
-  count = var.atlantis_github_webhook_secret != "" ? 0 : 1
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_github_webhook_secret != "" ? 0 : 1
 
   byte_length = "64"
 }
 
 resource "aws_ssm_parameter" "webhook" {
-  count = var.atlantis_bitbucket_user_token != "" ? 0 : 1
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_bitbucket_user_token != "" ? 0 : 1
 
   name  = var.webhook_ssm_parameter_name
   type  = "SecureString"
@@ -164,8 +178,13 @@ resource "aws_ssm_parameter" "webhook" {
   tags = local.tags
 }
 
+data "aws_ssm_parameter" "webhook" {
+  count = var.use_preset_ssm_parameters ? 1 : 0
+  name  = var.webhook_ssm_parameter_name
+}
+
 resource "aws_ssm_parameter" "atlantis_github_user_token" {
-  count = var.atlantis_github_user_token != "" ? 1 : 0
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_github_user_token != "" ? 1 : 0
 
   name  = var.atlantis_github_user_token_ssm_parameter_name
   type  = "SecureString"
@@ -174,8 +193,13 @@ resource "aws_ssm_parameter" "atlantis_github_user_token" {
   tags = local.tags
 }
 
+data "aws_ssm_parameter" "atlantis_github_user_token" {
+  count = var.use_preset_ssm_parameters ? 1 : 0
+  name  = var.atlantis_github_user_token_ssm_parameter_name
+}
+
 resource "aws_ssm_parameter" "atlantis_gitlab_user_token" {
-  count = var.atlantis_gitlab_user_token != "" ? 1 : 0
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_gitlab_user_token != "" ? 1 : 0
 
   name  = var.atlantis_gitlab_user_token_ssm_parameter_name
   type  = "SecureString"
@@ -184,8 +208,13 @@ resource "aws_ssm_parameter" "atlantis_gitlab_user_token" {
   tags = local.tags
 }
 
+data "aws_ssm_parameter" "atlantis_gitlab_user_token" {
+  count = var.use_preset_ssm_parameters ? 1 : 0
+  name  = var.atlantis_gitlab_user_token_ssm_parameter_name
+}
+
 resource "aws_ssm_parameter" "atlantis_bitbucket_user_token" {
-  count = var.atlantis_bitbucket_user_token != "" ? 1 : 0
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_bitbucket_user_token != "" ? 1 : 0
 
   name  = var.atlantis_bitbucket_user_token_ssm_parameter_name
   type  = "SecureString"
@@ -194,8 +223,14 @@ resource "aws_ssm_parameter" "atlantis_bitbucket_user_token" {
   tags = local.tags
 }
 
+data "aws_ssm_parameter" "atlantis_bitbucket_user_token" {
+  count = var.use_preset_ssm_parameters ? 1 : 0
+  name  = var.atlantis_bitbucket_user_token_ssm_parameter_name
+}
+
+
 resource "aws_ssm_parameter" "atlantis_github_app_key" {
-  count = var.atlantis_github_app_key != "" ? 1 : 0
+  count = var.use_preset_ssm_parameters ? 0 : var.atlantis_github_app_key != "" ? 1 : 0
 
   name  = var.atlantis_github_app_key_ssm_parameter_name
   type  = "SecureString"
@@ -203,6 +238,12 @@ resource "aws_ssm_parameter" "atlantis_github_app_key" {
 
   tags = local.tags
 }
+
+data "aws_ssm_parameter" "atlantis_github_app_key" {
+  count = var.use_preset_ssm_parameters ? 1 : 0
+  name  = var.atlantis_github_app_key_ssm_parameter_name
+}
+
 
 ################################################################################
 # VPC

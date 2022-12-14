@@ -298,6 +298,11 @@ variable "ssm_kms_key_arn" {
   default     = ""
 }
 
+variable "use_preset_ssm_parameters" {
+  type        = bool
+  default     = false
+}
+
 # ECS Service / Task
 variable "ecs_service_assign_public_ip" {
   description = "Should be true, if ECS service is using public subnets (more info: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_cannot_pull_image.html)"
